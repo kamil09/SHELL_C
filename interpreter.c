@@ -6,6 +6,9 @@
 #include<signal.h>
 #include<unistd.h>
 #include<sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 char *wszystkieLinie[200];	//Wczytana linia zostaje podzielona na kilka lini, które były oddzielone średnikami. Linie te będą wykonywane sekwencyjnie
 char *komendyRownolegle[200];	//Linia sekwencyjna zostaje podzielona na linie wykonywane współbierznie
@@ -128,14 +131,59 @@ void wykonajPolecenie(int argcT, char *argvT[100]){
 	int pid;
 	int wTle=0;
 	int stat=0;
+	int zapis = 0;		// 0 - normalnie ; 1 - zapis < ; 2 - dopisywanie
+	int odczyt =0;
+	char *inFILE;
+	char *outFILE;
+
+	//Sprawdzanie przekiewowania wejscia wyjscia i równoległości
 	for(i = 0; i < argcT; i++){
-		if(!strcmp(argvT[i],"&")) { 
-			wTle=1;
-			argvT[i]=0;
-			break;
+		if(argvT[i]){
+			if(!strcmp(argvT[i],"&")) { 
+				wTle=1;
+				argvT[i]=0;
+				break;
+			}
+			if(!strcmp(argvT[i],"<")){
+				odczyt=1;
+				inFILE=argvT[i+1];
+				argvT[i]=0;
+				argvT[i+1]=0;
+				i++;
+				continue;
+			}
+			if(!strcmp(argvT[i],">")){
+				zapis=1;
+				outFILE=argvT[i+1];
+				argvT[i]=0;
+				argvT[i+1]=0;
+				i++;
+				continue;
+			}
+			if(!strcmp(argvT[i],">>")){
+				zapis=2;
+				outFILE=argvT[i+1];
+				argvT[i]=0;
+				argvT[i+1]=0;
+				i++;
+				continue;
+			}
 		}
-	}	
+	}
+
+	
+	
 	if((pid=fork())==0){
+		if(zapis>0){
+			close(1);
+			if(zapis==1) zapis = open(outFILE, O_WRONLY | O_CREAT, 0644);
+			else zapis = open(outFILE, O_WRONLY | O_APPEND | O_CREAT, 0644);
+		}
+		if(odczyt>0){
+			close(0);
+			odczyt= open(inFILE, O_RDONLY);
+		}
+		
 		err=execvp(argvT[0] , argvT);
 		if(err==-1) {
 			fprintf(stderr, "Błąd przy próbie wykonania komendy :%s\n", argvT[0] ); 
