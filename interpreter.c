@@ -14,15 +14,15 @@ int iloscRownoleglych = 0;
 int argc=0;			//ILOŚC ARGUMENTÓW
 char *argv[200];		//ARGUMENTY
 //int wTle=0;
-int terminal=1;				
+int terminal=1;
 
 /**
  * Funkcja do obslugi sygnału zakończenia procesu
 */
 void obsluga(int signo){
 	int s;
-	pid_t pidP = wait(&s);
-	if(terminal==1) printf("\nProces zakończony. PID: %d Status: %d\n",pidP, s>>8);
+	//pid_t pidP = wait(&s);
+	//if(terminal==1) printf("\nProces zakończony. PID: %d Status: %d\n",pidP, s>>8);
 }
 /**
  * Funkcja która dzieli linię na kilka mniejszych wykonywanych sekwencyjnie
@@ -60,13 +60,17 @@ int podzielLinieWspolbierzne(char *l){
 	komendyRownolegle[0]=l;
 	while( c!= 0 ){
 		if(c=='&'){
-			*(l+(k+1))=0;	
-			komendyRownolegle[i]=l+(k+2);
-			i++;
+			if(*(l+(k+1))!=0){
+				*(l+(k+1))=0;	
+				komendyRownolegle[i]=l+(k+2);
+				i++;
+				k++;
+			}
 		}
 		k++;
 		c=l[k];
 	}
+	if(komendyRownolegle[i-1]==0) i--;
 	iloscRownoleglych=i;
 }
 /**
@@ -123,6 +127,7 @@ void wykonajPolecenie(int argcT, char *argvT[100]){
 	int i=0;
 	int pid;
 	int wTle=0;
+	int stat=0;
 	for(i = 0; i < argcT; i++){
 		if(!strcmp(argvT[i],"&")) { 
 			wTle=1;
@@ -140,7 +145,9 @@ void wykonajPolecenie(int argcT, char *argvT[100]){
 	}
 	else{
 		signal(SIGCHLD, obsluga);
-		if( wTle == 0) pause();
+		if( wTle == 0) {
+		//	waitpid(pid,&stat,0);
+		}
 		else printf("w tle [PID: %d]\n", pid);
 	}
 }
@@ -154,8 +161,10 @@ void obsluga_CTRL_C(){
 */
 int main(){
 	int i = 0;
-	int k = 0; 
+	int k = 0;
+	int status=0;
 	char *line;
+	pid_t pidT;
 	if(isatty(fileno(stdin))!=1 ) terminal=0;					//WCZYTANA LINIA
 	
 	while(1){
@@ -165,15 +174,20 @@ int main(){
 		else line=readline("");	
 		if( (line != NULL) && (*line)){
 			add_history(line);						//DODAJE LINIE DO HISTORII
-			podzielLinie(line);
+			podzielLinie(line);						//ROZBIJA NA LINIE SEKWENCYJNE
 			for(i = 0; i < iloscLini ; i++){
-				printf("%s\n",wszystkieLinie[i]);
-				podzielLinieWspolbierzne(wszystkieLinie[i]);
+			//	printf("%s\n",wszystkieLinie[i]);
+				podzielLinieWspolbierzne(wszystkieLinie[i]);		//ROZBIJA NA LINIE WSPOLBIERZNE
+			//	printf("%d\n",iloscRownoleglych);
 				for(k = 0 ; k<iloscRownoleglych; k++ ){	
 					if(!strcmp(line,"exit")) exit(0);
 					zamienLinie(komendyRownolegle[k]);				//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
 					if(argv[0]!=0) wykonajPolecenie(argc,argv);			//WYKONUJE POLECENIE
 				}
+				while ((pidT = wait(&status)) > 0){
+					if(terminal==1) printf("\nProces zakończony. PID: %d Status: %d\n",pidT, status>>8);				
+				};
+				
 			}
 		}
 		else if(line == NULL ) exit(0);
