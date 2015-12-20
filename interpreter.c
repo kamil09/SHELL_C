@@ -8,10 +8,12 @@
 #include<sys/wait.h>
 
 char *wszystkieLinie[200];	//Wczytana linia zostaje podzielona na kilka lini, które były oddzielone średnikami. Linie te będą wykonywane sekwencyjnie
+char *komendyRownolegle[200];	//Linia sekwencyjna zostaje podzielona na linie wykonywane współbierznie
 int iloscLini = 0;		//Ilość lini
-int argc=0;				//ILOŚC ARGUMENTÓW
+int iloscRownoleglych = 0;
+int argc=0;			//ILOŚC ARGUMENTÓW
 char *argv[200];		//ARGUMENTY
-int wTle=0;
+//int wTle=0;
 int terminal=1;				
 
 /**
@@ -46,11 +48,33 @@ int podzielLinie(char *l){
 	iloscLini=i;	
 }
 /**
+ * Funkcja która dzieli linie na komendy wykonywane współbierznie
+*/
+int podzielLinieWspolbierzne(char *l){
+	int i = 1;
+	int k = 0;
+	char c;
+	for(i=0;i<200;i++) komendyRownolegle[i]=0;
+	i=1;
+	c=l[k];
+	komendyRownolegle[0]=l;
+	while( c!= 0 ){
+		if(c=='&'){
+			*(l+(k+1))=0;	
+			komendyRownolegle[i]=l+(k+2);
+			i++;
+		}
+		k++;
+		c=l[k];
+	}
+	iloscRownoleglych=i;
+}
+/**
  * Funkcja która zamienia pojedyńczą linię na listę argumentów
  * Wyrzuca podwójne spacje
  * Sprawdza, czy linia jest zakomentowana
 */
-int zamienLinie(char *line){
+int zamienLinie(char *lineT){
 	char c=0;
 	int k=0;
 	int i=0;
@@ -58,33 +82,33 @@ int zamienLinie(char *line){
 	argc=0;
 
 	argc++;
-	c=line[k];
+	c=lineT[k];
 	while(c==' '){
 		k++;
-		c=*(line+k);
+		c=*(lineT+k);
 	}
-	if(*(line+k)=='#') return 5;
-	argv[0]=line+k;
+	if(*(lineT+k)=='#') return 5;
+	argv[0]=lineT+k;
 	while(c != 0) {
 		if(c == '#' ) break;
 		if(c==' '){
-			if( *(line+(k+1))==' ' ){
-				*(line+k)=0;
+			if( *(lineT+(k+1))==' ' ){
+				*(lineT+k)=0;
 			}
 			else{
-				*(line+k)=0;
-				if(*(line+(k+1))!=0 ) {
-					argv[argc]=line+(k+1);
-					if(!strcmp(argv[argc],"&")) { 
-						wTle=1;
-						argv[argc]=0;
-					}
+				*(lineT+k)=0;
+				if(*(lineT+(k+1))!=0 ) {
+					argv[argc]=lineT+(k+1);
+					//if(!strcmp(argv[argc],"&")) { 
+					//	wTle=1;
+					//	argv[argc]=0;
+					//}
 					argc++;
 				}
 			}
 		}
 		k++;
-		c=line[k];
+		c=lineT[k];
 	}
 //	for(i = 0; i<argc ;i++){
 //		printf("%s ",argv[i]);
@@ -94,13 +118,22 @@ int zamienLinie(char *line){
 /**
  * Funcka która wykonuje pojedyńcze polecenie
 */
-void wykonajPolecenie(char *argv[100]){
+void wykonajPolecenie(int argcT, char *argvT[100]){
 	int err;
+	int i=0;
 	int pid;
+	int wTle=0;
+	for(i = 0; i < argcT; i++){
+		if(!strcmp(argvT[i],"&")) { 
+			wTle=1;
+			argvT[i]=0;
+			break;
+		}
+	}	
 	if((pid=fork())==0){
-		err=execvp(argv[0] , argv);
+		err=execvp(argvT[0] , argvT);
 		if(err==-1) {
-			fprintf(stderr, "Błąd przy próbie wykonania komendy :%s\n", argv[0] ); 
+			fprintf(stderr, "Błąd przy próbie wykonania komendy :%s\n", argvT[0] ); 
 			exit(1);
 		}
 		else exit(0);
@@ -108,9 +141,7 @@ void wykonajPolecenie(char *argv[100]){
 	else{
 		signal(SIGCHLD, obsluga);
 		if( wTle == 0) pause();
-		else{
-			printf("w tle [PID: %d]\n", pid);
-		}
+		else printf("w tle [PID: %d]\n", pid);
 	}
 }
 /**
@@ -122,7 +153,8 @@ void obsluga_CTRL_C(){
  * Główna funkcja programu
 */
 int main(){
-	int i = 0; 
+	int i = 0;
+	int k = 0; 
 	char *line;
 	if(isatty(fileno(stdin))!=1 ) terminal=0;					//WCZYTANA LINIA
 	
@@ -135,12 +167,16 @@ int main(){
 			add_history(line);						//DODAJE LINIE DO HISTORII
 			podzielLinie(line);
 			for(i = 0; i < iloscLini ; i++){
-				//printf("%s\n",wszystkieLinie[i] );
-				if(!strcmp(line,"exit")) exit(0);
-				zamienLinie(wszystkieLinie[i]);				//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
-				if(argv[0]!=0) wykonajPolecenie(argv);			//WYKONUJE POLECENIE
+				printf("%s\n",wszystkieLinie[i]);
+				podzielLinieWspolbierzne(wszystkieLinie[i]);
+				for(k = 0 ; k<iloscRownoleglych; k++ ){	
+					if(!strcmp(line,"exit")) exit(0);
+					zamienLinie(komendyRownolegle[k]);				//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
+					if(argv[0]!=0) wykonajPolecenie(argc,argv);			//WYKONUJE POLECENIE
+				}
 			}
 		}
 		else if(line == NULL ) exit(0);
 	}
+	return 0;
 }
