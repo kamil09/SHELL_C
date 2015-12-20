@@ -1,0 +1,3 @@
+#!/home/no-one/Dokumenty/PROGRAMOWANIE/SHELL_SOP/interpreter.run
+ls -l
+ps ax > out.txt
