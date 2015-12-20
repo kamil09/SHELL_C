@@ -1,0 +1,6 @@
+a.out
+compile.sh
+cos
+cos.txt
+interpreter.c
+interpreter.run

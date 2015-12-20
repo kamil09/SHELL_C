@@ -131,7 +131,7 @@ void wykonajPolecenie(int argcT, char *argvT[100]){
 	int pid;
 	int wTle=0;
 	int stat=0;
-	int zapis = 0;		// 0 - normalnie ; 1 - zapis < ; 2 - dopisywanie
+	int zapis = 0;		// 0 - normalnie ; 1 - zapis < ; 2 - dopisywanie >>
 	int odczyt =0;
 	char *inFILE;
 	char *outFILE;
@@ -176,12 +176,16 @@ void wykonajPolecenie(int argcT, char *argvT[100]){
 	if((pid=fork())==0){
 		if(zapis>0){
 			close(1);
-			if(zapis==1) zapis = open(outFILE, O_WRONLY | O_CREAT, 0644);
-			else zapis = open(outFILE, O_WRONLY | O_APPEND | O_CREAT, 0644);
+			if(zapis==1) {
+				zapis = open( outFILE, O_WRONLY | O_CREAT, 0644);
+				ftruncate(zapis, 0);
+			}
+			else zapis = open( outFILE, O_WRONLY | O_APPEND | O_CREAT, 0644);
+			
 		}
 		if(odczyt>0){
 			close(0);
-			odczyt= open(inFILE, O_RDONLY);
+			odczyt = open(inFILE, O_RDONLY);
 		}
 		
 		err=execvp(argvT[0] , argvT);
