@@ -4,3 +4,6 @@ cos
 cos.txt
 interpreter.c
 interpreter.run
+ABCDEFGHIJK
+TO jest jakiś plik testowy 
+
