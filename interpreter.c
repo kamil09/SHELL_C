@@ -18,6 +18,8 @@ int iloscRownoleglych = 0;
 int argc=0;						//ILOŚC ARGUMENTÓW
 char *argv[200];				//ARGUMENTY
 int terminal=0;
+int stoppedProc[100];			//Tablica wstrzymanych procesów
+int zatrzymanych=0;
 
 int fgPID=-1;
 pid_t ppid=-1;
@@ -56,14 +58,13 @@ void obsluga(int signo){
 }
 
 void obsluga_CTRL_Z(int signo){
-	puts("odebrano");
 	fflush(stdout);
 	if( (fgPID > 0)  && ( fgPID!=ppid ) ){
-	//	kill( fdPID,SIGSTOP );
-		kill( fgPID,SIGTSTP );
+		stoppedProc[zatrzymanych]=fgPID;
+		zatrzymanych++;
+		kill( fgPID,SIGSTOP );
 		printf("Zatrzymany PID: %d\n",fgPID);
-	//	fdPID=-1;
-	//	kill( ppid, SIGCONT );
+		fgPID=-1;
 		fflush(stdout);
 	}
 }
@@ -165,7 +166,7 @@ void wykonajPoleceniePotokowe(int iloscPotokow, int obecnyPotok, char *potokiArg
 }
 
 /**
- * Funcka która wykonuje pojedyńcze polecenie
+ * Funcka która wykonuje pojedyńcze polecenie lub cały potok
 */
 void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 	int err, i=0, k=0, l=0, pid, stat=0;
@@ -174,9 +175,10 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 	char argvCopy[argcT+1][200];
 
 	signal(SIGCHLD, obsluga);
-	
+
 	if((pid=fork())==0){
-		
+	    signal(SIGTSTP, SIG_DFL);
+
 		//DOKONUJEMY KOPI DANYCH
 		//DANE Z LINI MOGĄ ZOSTAĆ NADPISANE, A MOGĄ BYĆ POTRZEBNE DLA POTOKU KTÓRY BĘDZIE SIĘ WYKONYWAŁ RÓWNOLEGLE
 		for(i=0;i< argcT;i++)
@@ -203,10 +205,18 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 	else{
 		if( wTle == 0) {
 			fgPID=pid;
-			waitpid(pid, &stat ,0);
-			if(terminal==1) {
-				printf("\nProces zakończony. PID: %d Status: %d\n\n",pid, stat>>8);
-				fflush(stdout);
+			waitpid(pid, &stat , WUNTRACED | WCONTINUED);
+			if (WIFEXITED(stat)){
+				if(terminal==1) {
+					printf("\nProces zakończony. PID: %d Status: %d\n\n",pid, stat>>8);
+					fflush(stdout);
+				}
+			}
+			else if (WIFSIGNALED(stat)){
+				if(terminal==1) {
+					printf("\nProces ubity. PID: %d Status: %d\n\n",pid, stat>>8);
+					fflush(stdout);
+				}
 			}
 		}
 		else {
@@ -214,6 +224,73 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 		}
 	}
 }
+/**
+ * Wypisuje procesy wstrzymane
+ */
+void runJobs(){
+	int i=0;
+	puts("\nWSTRZYMANE PROCESY :\n");
+	for(i=0; i< zatrzymanych; i++){
+		printf("\tPID: %d\n",stoppedProc[i]);
+	}
+	printf("\n\tWykonaj \"fd <PID> \" aby uruchomić odpowiedni proces w trybie pierwszoplanowym");
+	printf("\n\tWykonaj \"bg <PID> \" aby uruchomić odpowiedni proces w tle\n\n");
+}
+
+/**
+ * Usuwa proces z listy procesów wstrzymanych
+ */
+void usunZListyBG(int pidT){
+	int i=0;
+	for(i=0;i < zatrzymanych ; i++ ){
+		if(stoppedProc[i]==pidT ) {
+			stoppedProc[i]=0;
+			break;
+		}
+	}
+	for(i; i < zatrzymanych ; i++){
+		stoppedProc[i]=stoppedProc[i+1];
+	}
+	zatrzymanych--;
+}
+
+/**
+ * Wznawia proces w trybie pierwszoplanowym
+ */
+void runFG(int pidT){
+	int stat;
+	kill(pidT,SIGCONT);
+	fgPID=pidT;
+	while(1){
+		waitpid(pidT, &stat , WUNTRACED | WCONTINUED);
+		if (WIFEXITED(stat)){
+			if(terminal==1) {
+				printf("\nProces zakończony. PID: %d Status: %d\n\n",pidT, stat>>8);
+				fflush(stdout);
+			}
+			break;
+		}
+		else if (WIFSIGNALED(stat)){
+			if(terminal==1) {
+				printf("\nProces ubity. PID: %d Status: %d\n\n",pidT, stat>>8);
+				fflush(stdout);
+			}
+			break;
+		}
+		else if (WIFSTOPPED(stat))
+    		break;
+	}
+	usunZListyBG(pidT);
+}
+/**
+ * Wznawia proces w tle
+ */
+void runBG(int pidT){
+	kill(pidT,SIGCONT);
+	printf("w tle [PID: %d]\n", pidT);
+	usunZListyBG(pidT);
+}
+
 /**
  * Główna funkcja programu
 */
@@ -232,7 +309,7 @@ int main(){
 
 	while(1){
 	//	signal(SIGINT,obsluga_CTRL_C);							//Sygnał przerwania	
-		signal(SIGTSTP, obsluga_CTRL_C);
+		signal(SIGTSTP, obsluga_CTRL_Z);
 		dir = getcwd(dir,100);
 		dir = strcat(dir," >>> ");
 
@@ -246,8 +323,15 @@ int main(){
 				wTle=podzielLinieWspolbierzne(wszystkieLinie[i]);								//ROZBIJA NA LINIE WSPOLBIERZNE
 				for(k = 0 ; k<iloscRownoleglych; k++ ){	
 					if(!strcmp(line,"exit")) exit(0);
-					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
+					if(!strcmp(line,"jobs")) {
+						runJobs();
+						continue;
+					}
 					
+					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
+					if(!strcmp(argv[0],"fg")) { runFG(atoi(argv[1])); continue;}
+					if(!strcmp(argv[0],"bg")) { runBG(atoi(argv[1])); continue;}
+
 					if( (argv[0]!=0) && (argv[0][0]>30 ) ) wykonajPolecenie(argc,argv,wTle);	//WYKONUJE POLECENIE
 				}
 
