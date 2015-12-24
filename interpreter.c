@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 char *wszystkieLinie[200];		//Wczytana linia zostaje podzielona na kilka lini, które były oddzielone średnikami. Linie te będą wykonywane sekwencyjnie
 char *komendyRownolegle[200];	//Linia sekwencyjna zostaje podzielona na linie wykonywane współbierznie
@@ -16,7 +17,7 @@ int iloscLini = 0;				//Ilość lini
 int iloscRownoleglych = 0;
 int argc=0;						//ILOŚC ARGUMENTÓW
 char *argv[200];				//ARGUMENTY
-int terminal=1;
+int terminal=0;
 
 int fgPID=-1;
 pid_t ppid=-1;
@@ -32,19 +33,28 @@ void sigTTIN(int signo){
 void sigTTOU(int signo){
 	signal(SIGTTOU, SIG_DFL);
 }
+
+void* obslugaPThread(void* info){
+	int s;
+	char *dir;
+
+	pid_t pidP = waitpid(-1,&s,0);
+ 	if(terminal==1 && pidP>0) {
+ 		dir = getcwd(dir,100);
+		dir = strcat(dir," >>> ");
+ 		printf("\nProces zakończony. PID: %d Status: %d\n\n",pidP, s>>8);
+ 		printf("%s",dir);
+ 		fflush(stdout);
+ 	}
+}
 /**
  * Funkcja do obslugi sygnału zakończenia procesu
 */
 void obsluga(int signo){
-	int s;
- 	pid_t pidP = waitpid(-1,&s,0);
- 	if(terminal==1 && pidP>0) {
- 		printf("\nProces zakończony. PID: %d Status: %d\n",pidP, s>>8);
- 		printf("Wprowadz komendę >>> ");
- 		fflush(stdout);
- 	}
-
+	pthread_t th;
+	pthread_create(&th, NULL, obslugaPThread, NULL);
 }
+
 void obsluga_CTRL_Z(int signo){
 	puts("odebrano");
 	fflush(stdout);
@@ -115,10 +125,10 @@ void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100]
 			odczyt = open(inFILE, O_RDONLY);
 		}
 		
-		err= execvp( potokiArgv[iloscPotokow-obecnyPotok][0],(char**) potokiArgv[iloscPotokow-obecnyPotok] );
+		err = execvp( potokiArgv[iloscPotokow-obecnyPotok][0],(char**) potokiArgv[iloscPotokow-obecnyPotok] );
 		
 		if(err==-1) {
-			fprintf(stderr, "Błąd przy próbie wykonania komendy :%s\n", potokiArgv[iloscPotokow-obecnyPotok][0] );
+			fprintf(stderr, "Błąd przy próbie wykonania komendy : %s\n", potokiArgv[iloscPotokow-obecnyPotok][0] );
 			exit(1);
 		}
 		else exit(0);
@@ -193,15 +203,15 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 	else{
 		if( wTle == 0) {
 			fgPID=pid;
-			signal(SIGCHLD, SIG_DFL);
 			waitpid(pid, &stat ,0);
-			signal(SIGCHLD, obsluga);
 			if(terminal==1) {
-				printf("\nProces zakończony. PID: %d Status: %d\n",pid, stat>>8);
+				printf("\nProces zakończony. PID: %d Status: %d\n\n",pid, stat>>8);
 				fflush(stdout);
 			}
 		}
-		else printf("w tle [PID: %d]\n", pid);
+		else {
+			printf("w tle [PID: %d]\n", pid);
+		}
 	}
 }
 /**
@@ -213,16 +223,21 @@ int main(){
 	int status=0;
 	char *line;
 	pid_t pidT;
-	if(isatty(0)!=1 ) terminal=0;					//WCZYTANA LINIA
 	int wTle=1;
+	char *dir;
 	
 	ppid=getpid();
+
+	if(isatty(0)) terminal=1;					//WCZYTANA LINIA
 
 	while(1){
 	//	signal(SIGINT,obsluga_CTRL_C);							//Sygnał przerwania	
 		signal(SIGTSTP, obsluga_CTRL_C);
-		if(terminal==1) line=readline("Wprowadz komendę >>> ");	//Wczytanie lini
-		else line=readline("");	
+		dir = getcwd(dir,100);
+		dir = strcat(dir," >>> ");
+
+		if(terminal==1) line=readline(dir);	//Wczytanie lini
+		else line=readline(NULL);	
 		if( (line != NULL) && (*line)){
 			add_history(line);						//DODAJE LINIE DO HISTORII
 			podzielLinie(line);						//ROZBIJA NA LINIE SEKWENCYJNE

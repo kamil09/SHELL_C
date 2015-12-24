@@ -1,1 +1,1 @@
-gcc interpreter.c -lreadline -o interpreter.run
+gcc interpreter.c -lreadline -lpthread -o interpreter.run
