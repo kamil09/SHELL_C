@@ -1,0 +1,18 @@
+TYTUŁ: SZKIELET WŁASNEGO INTERPRETERA POLECEŃ
+
+AUTOR: KAMIL PIOTROWSKI
+
+FUNKCJONALNOŚĆ:
+	
+	1. Wykonywanie komend z dowolną lizbą argumentów (max 200)
+	2. Wykonywanie sekwencyjne polceń oddzielonych ";"
+	3. Wykonywanie współbierzne poleceń w tle oddzielonych "&"
+	4. Obsługa komentarzy
+	5. Obsługa procesów ZOMBIE
+	6. Obsługa przekierowań do i z plików (tylko strumienie stdin "<" i stdout ">",">>" )
+	7. Powiadomienie o zakończeniu każdeg procesu (nawet tego w tle) wraz ze statusem zakończenia
+	8. Obsługa tryby interaktywnego i wsadowego (brak znaku zachęty dla wsadowego)
+	9. Mozliwość wykonywania poleceń z dowolną liczbą potoków (max 100).
+	10. Możliwość wstrzymywania zadań (CTRL+Z) wraz z implementacją JOBS, FG, BG
+	11. Przechwycenie sygnału ^C dla Shell'a, wyjście następuje za pomocą komendy "exit"
+

@@ -29,18 +29,16 @@ pid_t ppid=-1;
 */
 void obsluga_CTRL_C(){
 }
-void sigTTIN(int signo){
-	signal(SIGTTIN, SIG_DFL);
-}
-void sigTTOU(int signo){
-	signal(SIGTTOU, SIG_DFL);
-}
-
-void* obslugaPThread(void* info){
+/**
+ * Funkcja do obslugi sygnału zakończenia procesu
+*/
+void obsluga(int signo){
+	pthread_t th;
 	int s;
 	char *dir;
 
-	pid_t pidP = waitpid(-1,&s,0);
+	pid_t pidP = waitpid(-1,&s,WNOHANG);
+ 	
  	if(terminal==1 && pidP>0) {
  		dir = getcwd(dir,100);
 		dir = strcat(dir," >>> ");
@@ -48,13 +46,6 @@ void* obslugaPThread(void* info){
  		printf("%s",dir);
  		fflush(stdout);
  	}
-}
-/**
- * Funkcja do obslugi sygnału zakończenia procesu
-*/
-void obsluga(int signo){
-	pthread_t th;
-	pthread_create(&th, NULL, obslugaPThread, NULL);
 }
 
 void obsluga_CTRL_Z(int signo){
@@ -308,7 +299,7 @@ int main(){
 	if(isatty(0)) terminal=1;					//WCZYTANA LINIA
 
 	while(1){
-	//	signal(SIGINT,obsluga_CTRL_C);							//Sygnał przerwania	
+		signal(SIGINT,obsluga_CTRL_C);							//Sygnał przerwania	
 		signal(SIGTSTP, obsluga_CTRL_Z);
 		dir = getcwd(dir,100);
 		dir = strcat(dir," >>> ");
@@ -329,8 +320,8 @@ int main(){
 					}
 					
 					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
-					if(!strcmp(argv[0],"fg")) { runFG(atoi(argv[1])); continue;}
-					if(!strcmp(argv[0],"bg")) { runBG(atoi(argv[1])); continue;}
+					if(!strcmp(argv[0],"fg") && argv[1] ) { runFG(atoi(argv[1])); continue;}
+					if(!strcmp(argv[0],"bg") && argv[1] ) { runBG(atoi(argv[1])); continue;}
 
 					if( (argv[0]!=0) && (argv[0][0]>30 ) ) wykonajPolecenie(argc,argv,wTle);	//WYKONUJE POLECENIE
 				}
