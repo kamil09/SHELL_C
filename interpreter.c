@@ -9,7 +9,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <pthread.h>
 
 char *wszystkieLinie[200];		//Wczytana linia zostaje podzielona na kilka lini, które były oddzielone średnikami. Linie te będą wykonywane sekwencyjnie
 char *komendyRownolegle[200];	//Linia sekwencyjna zostaje podzielona na linie wykonywane współbierznie
@@ -20,52 +19,19 @@ char *argv[200];				//ARGUMENTY
 int terminal=0;
 int stoppedProc[100];			//Tablica wstrzymanych procesów
 int zatrzymanych=0;
-
 int fgPID=-1;
 pid_t ppid=-1;
+char *dir;
 
-/**
- * Funcka do ubsługi CRTL+C
-*/
-void obsluga_CTRL_C(){
-}
-/**
- * Funkcja do obslugi sygnału zakończenia procesu
-*/
-void obsluga(int signo){
-	pthread_t th;
-	int s;
-	char *dir;
-
-	pid_t pidP = waitpid(-1,&s,WNOHANG);
- 	
- 	if(terminal==1 && pidP>0) {
- 		dir = getcwd(dir,100);
-		dir = strcat(dir," >>> ");
- 		printf("\nProces zakończony. PID: %d Status: %d\n\n",pidP, s>>8);
- 		printf("%s",dir);
- 		fflush(stdout);
- 	}
-}
-
-void obsluga_CTRL_Z(int signo){
-	fflush(stdout);
-	if( (fgPID > 0)  && ( fgPID!=ppid ) ){
-		stoppedProc[zatrzymanych]=fgPID;
-		zatrzymanych++;
-		kill( fgPID,SIGSTOP );
-		printf("Zatrzymany PID: %d\n",fgPID);
-		fgPID=-1;
-		fflush(stdout);
-	}
-}
-/**
- * Funkcja która dzieli linię na kilka mniejszych wykonywanych sekwencyjnie
-*/
+//OBSŁUGA CTRL+C
+void obsluga_CTRL_C(){}
+//OBSŁUGA SYGNAŁU ZAKOŃCZENIA PROCESU
+void obsluga(int signo);
+//OBSŁUGA CTRL+Z
+void obsluga_CTRL_Z(int signo);
+//Funkcja która dzieli linię na kilka mniejszych wykonywanych sekwencyjnie
 int podzielLinie(char *l);
-/**
- * Funkcja która dzieli linie na komendy wykonywane współbierznie
-*/
+//Funkcja która dzieli linie na komendy wykonywane współbierznie
 int podzielLinieWspolbierzne(char *l);
 /**
  * Funkcja która zamienia pojedyńczą linię na listę argumentów
@@ -130,25 +96,18 @@ void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100]
  * Rekurencyjna funkcja wykonująca polecenia potokowe
  */
 void wykonajPoleceniePotokowe(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100] ){
-	int i=0;
-	int pid;
-	int stat;
-	
+	int i=0, pid, stat;
 	int fd[2];
-	int fd2[2];
-
 	pipe(fd);
 
-	if( obecnyPotok==iloscPotokow ){
-		//Sprawdzanie przekiewowania wejscia wyjscia i równoległości
+	if( obecnyPotok==iloscPotokow ) //Dno rekurencji
 		wykonajKomende(iloscPotokow,obecnyPotok,potokiArgv);
-	}
 	else{
-		if((pid=fork())==0){
+		if((pid=fork())==0){	//Dziecko - idziemy głębiej
 			dup2(fd[1],1);
 			wykonajPoleceniePotokowe(iloscPotokow,obecnyPotok+1,potokiArgv);
 		}
-		else{
+		else{					//Rodzić - odpalamy polecenie
 			dup2(fd[0], 0);
 			close(fd[1]);
 			wykonajKomende(iloscPotokow,obecnyPotok,potokiArgv);
@@ -189,7 +148,6 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 			potokiArgv[k][l]=argvCopy[i];
 			l++;
 		}
-
 		wykonajPoleceniePotokowe(potoki,0,potokiArgv);
 	}
 
@@ -215,39 +173,12 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 		}
 	}
 }
-/**
- * Wypisuje procesy wstrzymane
- */
-void runJobs(){
-	int i=0;
-	puts("\nWSTRZYMANE PROCESY :\n");
-	for(i=0; i< zatrzymanych; i++){
-		printf("\tPID: %d\n",stoppedProc[i]);
-	}
-	printf("\n\tWykonaj \"fd <PID> \" aby uruchomić odpowiedni proces w trybie pierwszoplanowym");
-	printf("\n\tWykonaj \"bg <PID> \" aby uruchomić odpowiedni proces w tle\n\n");
-}
 
-/**
- * Usuwa proces z listy procesów wstrzymanych
- */
-void usunZListyBG(int pidT){
-	int i=0;
-	for(i=0;i < zatrzymanych ; i++ ){
-		if(stoppedProc[i]==pidT ) {
-			stoppedProc[i]=0;
-			break;
-		}
-	}
-	for(i; i < zatrzymanych ; i++){
-		stoppedProc[i]=stoppedProc[i+1];
-	}
-	zatrzymanych--;
-}
-
-/**
- * Wznawia proces w trybie pierwszoplanowym
- */
+// Wypisuje procesy wstrzymane
+void runJobs();
+//Usuwa proces z listy procesów wstrzymanych
+void usunZListyBG(int pidT);
+//Wznawia proces w trybie pierwszoplanowym
 void runFG(int pidT){
 	int stat;
 	kill(pidT,SIGCONT);
@@ -273,31 +204,27 @@ void runFG(int pidT){
 	}
 	usunZListyBG(pidT);
 }
-/**
- * Wznawia proces w tle
- */
-void runBG(int pidT){
-	kill(pidT,SIGCONT);
-	printf("w tle [PID: %d]\n", pidT);
-	usunZListyBG(pidT);
-}
+//Wznawia proces w tle
+void runBG(int pidT);
+
 
 /**
  * Główna funkcja programu
 */
-int main(){
+int main(int argcM, char **argvM){
 	int i = 0;
 	int k = 0;
-	int status=0;
+	int status=0, plikW, defIN;
 	char *line;
 	pid_t pidT;
 	int wTle=1;
-	char *dir;
-	
 	ppid=getpid();
-
 	if(isatty(0)) terminal=1;					//WCZYTANA LINIA
-
+	if(argcM>1) {
+		terminal=0;
+		close(0);
+		plikW = open(argvM[1], O_RDONLY);
+	}
 	while(1){
 		signal(SIGINT,obsluga_CTRL_C);							//Sygnał przerwania	
 		signal(SIGTSTP, obsluga_CTRL_Z);
@@ -305,7 +232,13 @@ int main(){
 		dir = strcat(dir," >>> ");
 
 		if(terminal==1) line=readline(dir);	//Wczytanie lini
-		else line=readline(NULL);	
+		else {
+			defIN=dup(1);
+			close(1);
+			line=readline(NULL);
+			dup2(defIN,1);
+			close(defIN);
+		}	
 		if( (line != NULL) && (*line)){
 			add_history(line);						//DODAJE LINIE DO HISTORII
 			podzielLinie(line);						//ROZBIJA NA LINIE SEKWENCYJNE
@@ -318,14 +251,11 @@ int main(){
 						runJobs();
 						continue;
 					}
-					
 					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
-					if(!strcmp(argv[0],"fg") && argv[1] ) { runFG(atoi(argv[1])); continue;}
-					if(!strcmp(argv[0],"bg") && argv[1] ) { runBG(atoi(argv[1])); continue;}
-
-					if( (argv[0]!=0) && (argv[0][0]>30 ) ) wykonajPolecenie(argc,argv,wTle);	//WYKONUJE POLECENIE
+					if(argv[0] && !strcmp(argv[0],"fg") && argv[1] ) { runFG(atoi(argv[1])); continue;}
+					if(argv[0] && !strcmp(argv[0],"bg") && argv[1] ) { runBG(atoi(argv[1])); continue;}
+					if( (argv[0]!=0) && (argv[0][0]>30 ) ) wykonajPolecenie(argc,argv,wTle--);	//WYKONUJE POLECENIE
 				}
-
 			}
 		}
 		else if(line == NULL ) exit(0);
@@ -357,7 +287,6 @@ int podzielLinie(char *l){
 	i=1;
 	c=l[k];
 	wszystkieLinie[0]=l;
-	
 	while( c!= 0 ){
 		if(c==';'){
 			*(l+k)=0;
@@ -394,9 +323,7 @@ int podzielLinieWspolbierzne(char *l){
 	}
 	if(komendyRownolegle[i-1]==0) i--;
 	iloscRownoleglych=i;
-	if(r>=1) return 1;
-	else return 0;
-
+	return r;
 }
 int zamienLinie(char *lineT){
 	char c=0;
@@ -431,4 +358,46 @@ int zamienLinie(char *lineT){
 		c=lineT[k];
 	}
 	return 0;
+}
+void obsluga_CTRL_Z(int signo){
+	if( (fgPID > 0)  && ( fgPID!=ppid ) ){
+		stoppedProc[zatrzymanych]=fgPID;
+		zatrzymanych++;
+		kill( fgPID,SIGSTOP );
+		printf("Zatrzymany PID: %d\n",fgPID);
+		fgPID=-1;
+	}
+	fflush(stdout);
+}
+void obsluga(int signo){
+	int s;
+	pid_t pidP = waitpid(-1,&s,WNOHANG);
+ 	if(terminal==1 && pidP>0) {
+ 		printf("\nProces zakończony. PID: %d Status: %d\n\n %s",pidP, s>>8,dir);
+ 		fflush(stdout);
+ 	}
+}
+void runJobs(){
+	int i=0;
+	puts("\nWSTRZYMANE PROCESY :\n");
+	for(i=0; i< zatrzymanych; i++)
+		printf("\tPID: %d\n",stoppedProc[i]);
+	printf("\n\tWykonaj \"fd <PID> \" aby uruchomić odpowiedni proces w trybie pierwszoplanowym");
+	printf("\n\tWykonaj \"bg <PID> \" aby uruchomić odpowiedni proces w tle\n\n");
+}
+void usunZListyBG(int pidT){
+	int i=0;
+	for(i=0;i < zatrzymanych ; i++ )
+		if(stoppedProc[i]==pidT ) {
+			stoppedProc[i]=0;
+			break;
+		}
+	for(i; i < zatrzymanych ; i++)
+		stoppedProc[i]=stoppedProc[i+1];
+	zatrzymanych--;
+}
+void runBG(int pidT){
+	kill(pidT,SIGCONT);
+	printf("w tle [PID: %d]\n", pidT);
+	usunZListyBG(pidT);
 }
