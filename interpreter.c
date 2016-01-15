@@ -22,6 +22,8 @@ int zatrzymanych=0;
 int fgPID=-1;
 pid_t ppid=-1;
 char *dir;
+int mainArgc=0;
+char **mainArgv;
 
 //OBSŁUGA CTRL+C
 void obsluga_CTRL_C(){}
@@ -60,6 +62,23 @@ int ustawZmienne(int argcT, char *argvT[100]){
 	}
 	for(i=przesuniecie; i<=argcT; i++ ) argvT[i-przesuniecie]=argvT[i];
 	return argcT-przesuniecie;
+}
+
+void zamienArgumenty(int argcT, char *argvT[100]){
+	int i=0, number;
+	char *valName;
+	for (i=0;i<argcT; i++){
+		if( argvT[i] && (argvT[i][0]=='$') ){
+			valName=argvT[i]+1;
+			argvT[i]=" \0";
+			number=atoi(valName);
+			if((number > 0 && number<mainArgc) || ( valName[0] == '0') ) argvT[i]=mainArgv[number];
+			else {
+				valName=getenv(valName);
+				if(valName) argvT[i]=valName;
+			}
+		}
+	}
 }
 
 void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100] ){
@@ -163,16 +182,18 @@ void runBG(int pidT);
 /**
  * Główna funkcja programu
 */
-int main(int argcM, char **argvM){
+int main(int mainArgc_1, char **mainArgv_1){
 	int i = 0, k = 0, status=0, plikW, defIN, wTle=1;
 	char *line;
 	pid_t pidT;
 	ppid=getpid();
+	mainArgc=mainArgc_1;
+	mainArgv=mainArgv_1;
 	if(isatty(0)) terminal=1;					//WCZYTANA LINIA
-	if(argcM>1) {
+	if(mainArgc_1>1) {
 		terminal=0;
 		close(0);
-		plikW = open(argvM[1], O_RDONLY);
+		plikW = open(mainArgv_1[1], O_RDONLY);
 	}
 	while(1){
 		signal(SIGINT,obsluga_CTRL_C);							//Sygnał przerwania	
@@ -201,6 +222,7 @@ int main(int argcM, char **argvM){
 					}
 					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
 					if(argv[0]) argc=ustawZmienne(argc,argv);
+					zamienArgumenty(argc,argv);
 					if(argv[0] && !strcmp(argv[0],"unset") ){ unSetVar(argc,argv) ;continue;}
 					if(argv[0] && !strcmp(argv[0],"fg") && argv[1] ) { runFG(atoi(argv[1])); continue;}
 					if(argv[0] && !strcmp(argv[0],"bg") && argv[1] ) { runBG(atoi(argv[1])); continue;}
