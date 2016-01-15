@@ -33,6 +33,10 @@ void obsluga_CTRL_Z(int signo);
 int podzielLinie(char *l);
 //Funkcja która dzieli linie na komendy wykonywane współbierznie
 int podzielLinieWspolbierzne(char *l);
+//Wypisuje wrgumenty
+void wypiszEcho(char *argvT[100],int argcT);
+//PRZEKIEROWYJE STRUMIENIE WEJŚCIA I WYJSCIA
+void przekierowanieStrumieni(int argcT, char *argvT[100]);
 /**
  * Funkcja która zamienia pojedyńczą linię na listę argumentów
  * Wyrzuca podwójne spacje
@@ -40,51 +44,14 @@ int podzielLinieWspolbierzne(char *l);
 */
 int zamienLinie(char *lineT);
 
-void przekierowanieStrumieni(int argcT, char *argvT[100]){
-	int i=0;
-	int zapis = 0;		// 0 - normalnie ; 1 - zapis < ; 2 - dopisywanie >>
-	int odczyt =0;
-	char *inFILE;
-	char *outFILE;
-	for(i = 0; i < argcT; i++){
-		if(argvT[i]){
-			if(!strcmp(argvT[i],"<")){
-				odczyt=1;
-				inFILE=argvT[i+1];
-				argvT[i]=0;argvT[i+1]=0;i++;
-				continue;
-			}
-			if(!strcmp(argvT[i],">")){
-				zapis=1;
-				outFILE=argvT[i+1];
-				argvT[i]=0;argvT[i+1]=0;i++;
-				continue;
-			}
-			if(!strcmp(argvT[i],">>")){
-				zapis=2;
-				outFILE=argvT[i+1];
-				argvT[i]=0;argvT[i+1]=0;i++;
-				continue;
-			}
-		}
-	}		
-	if(zapis>0){
-		close(1);
-		if(zapis==1) {
-			zapis = open( outFILE, O_WRONLY | O_CREAT, 0644);
-			ftruncate(zapis, 0);
-		}
-		else zapis = open( outFILE, O_WRONLY | O_APPEND | O_CREAT, 0644);
-	}
-	if(odczyt>0){
-		close(0);
-		odczyt = open(inFILE, O_RDONLY);
-	}
-}
 
 void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100] ){
 	int err;
 	przekierowanieStrumieni(100, potokiArgv[iloscPotokow-obecnyPotok]);
+	if(potokiArgv[iloscPotokow-obecnyPotok][0] && !strcmp(potokiArgv[iloscPotokow-obecnyPotok][0],"echo")) { 
+		wypiszEcho(potokiArgv[iloscPotokow-obecnyPotok], 100); 
+		exit(0);
+	}
 	err = execvp( potokiArgv[iloscPotokow-obecnyPotok][0],(char**) potokiArgv[iloscPotokow-obecnyPotok] );
 	if(err==-1) {
 		fprintf(stderr, "Błąd przy próbie wykonania komendy : %s\n", potokiArgv[iloscPotokow-obecnyPotok][0] );
@@ -129,7 +96,6 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 
 	if((pid=fork())==0){
 	    signal(SIGTSTP, SIG_DFL);
-	    
 		//DOKONUJEMY KOPI DANYCH
 		//DANE Z LINI MOGĄ ZOSTAĆ NADPISANE, A MOGĄ BYĆ POTRZEBNE DLA POTOKU KTÓRY BĘDZIE SIĘ WYKONYWAŁ RÓWNOLEGLE
 		for(i=0;i< argcT;i++)
@@ -182,8 +148,6 @@ void usunZListyBG(int pidT);
 void runFG(int pidT);
 //Wznawia proces w tle
 void runBG(int pidT);
-//Wypisuje wrgumenty
-void wypiszEcho(int argcT, char *argvT[100]);
 
 /**
  * Główna funkcja programu
@@ -231,7 +195,7 @@ int main(int argcM, char **argvM){
 					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
 					if(argv[0] && !strcmp(argv[0],"fg") && argv[1] ) { runFG(atoi(argv[1])); continue;}
 					if(argv[0] && !strcmp(argv[0],"bg") && argv[1] ) { runBG(atoi(argv[1])); continue;}
-					if(argv[0] && !strcmp(argv[0],"echo")) { wypiszEcho(argc, argv); continue;}
+					//if(argv[0] && !strcmp(argv[0],"echo")) { wypiszEcho(argc, argv); continue;}
 					
 					if( (argv[0]!=0) && (argv[0][0]>30 ) ) wykonajPolecenie(argc,argv,wTle--);	//WYKONUJE POLECENIE
 				}
@@ -405,16 +369,47 @@ void runFG(int pidT){
 	}
 	usunZListyBG(pidT);
 }
-void wypiszEcho(int argcT, char *argvT[100]){
-	int i=0, pid=0;
-	signal(SIGCHLD, obsluga);
-	if((pid=fork())==0){
-		signal(SIGTSTP, SIG_DFL);
-		przekierowanieStrumieni(argcT,argvT);
-		for(i=1; i<argcT ; i++ )
-			if(argvT[i])
-				printf("%s ",argvT[i]);
-		printf("\n");
-		exit(0);
+void wypiszEcho(char *argvT[100], int argcT){
+	int i=0;
+	for(i=1; i<argcT ; i++ )
+		if(argvT[i])
+			printf("%s ",argvT[i]);
+	printf("\n");
+}
+void przekierowanieStrumieni(int argcT, char *argvT[100]){
+	int i=0;
+	int zapis = 0;		// 0 - normalnie ; 1 - zapis < ; 2 - dopisywanie >>
+	int odczyt =0;
+	char *inFILE, *outFILE;
+	for(i = 0; i < argcT; i++){
+		if(argvT[i]){
+			if(!strcmp(argvT[i],"<")){
+				odczyt=1;
+				inFILE=argvT[i+1];
+				argvT[i]=0;argvT[i+1]=0;i++;
+			}
+			else if(!strcmp(argvT[i],">")){
+				zapis=1;
+				outFILE=argvT[i+1];
+				argvT[i]=0;argvT[i+1]=0;i++;
+			}
+			else if(!strcmp(argvT[i],">>")){
+				zapis=2;
+				outFILE=argvT[i+1];
+				argvT[i]=0;argvT[i+1]=0;i++;
+			}
+		}
+	}		
+	if(zapis>0){
+		close(1);
+		if(zapis==1) {
+			zapis = open( outFILE, O_WRONLY | O_CREAT, 0644);
+			ftruncate(zapis, 0);
+		}
+		else zapis = open( outFILE, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	}
+	if(odczyt>0){
+		close(0);
+		odczyt = open(inFILE, O_RDONLY);
 	}
 }
