@@ -37,13 +37,30 @@ int podzielLinieWspolbierzne(char *l);
 void wypiszEcho(char *argvT[100],int argcT);
 //PRZEKIEROWYJE STRUMIENIE WEJŚCIA I WYJSCIA
 void przekierowanieStrumieni(int argcT, char *argvT[100]);
-/**
- * Funkcja która zamienia pojedyńczą linię na listę argumentów
- * Wyrzuca podwójne spacje
- * Sprawdza, czy linia jest zakomentowana
-*/
+//Funkcja która zamienia pojedyńczą linię na listę argumentów ; Wyrzuca podwójne spacje ; Sprawdza, czy linia jest zakomentowana
 int zamienLinie(char *lineT);
-
+//Usuwa zmienne środowiskowe
+void unSetVar(int argcT, char *argvT[100]);
+//Ustawie zmienną środowiskową
+int ustawZmienne(int argcT, char *argvT[100]){
+	int i=0, k=0, przesuniecie=0;
+	char *name=NULL, *val=NULL;
+	for(k=0; k < argcT;k++){
+		name=argvT[k];
+		i=1;
+		while( *(argvT[k]+i) != 0 ){
+			if( (*(argvT[k]+i)=='=') && (*(argvT[k]+i-1)!='\\') ){
+				*(argvT[k]+i)=0;
+				val=(argvT[k]+i+1);
+				przesuniecie++;
+				setenv(name,val,1);
+			}
+			i++;
+		}
+	}
+	for(i=przesuniecie; i<=argcT; i++ ) argvT[i-przesuniecie]=argvT[i];
+	return argcT-przesuniecie;
+}
 
 void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100] ){
 	int err;
@@ -60,16 +77,12 @@ void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100]
 	else exit(0);
 }
 
-/**
- * Rekurencyjna funkcja wykonująca polecenia potokowe
- */
+//Rekurencyjna funkcja wykonująca polecenia potokowe
 void wykonajPoleceniePotokowe(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100] ){
 	int i=0, pid, stat;
 	int fd[2];
 	pipe(fd);
-
-	if( obecnyPotok==iloscPotokow ) //Dno rekurencji
-		wykonajKomende(iloscPotokow,obecnyPotok,potokiArgv);
+	if( obecnyPotok==iloscPotokow ) wykonajKomende(iloscPotokow,obecnyPotok,potokiArgv);
 	else{
 		if((pid=fork())==0){	//Dziecko - idziemy głębiej
 			dup2(fd[1],1);
@@ -91,9 +104,7 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 	int potoki=0;
 	char *potokiArgv[30][100];
 	char argvCopy[argcT+1][200];
-
 	signal(SIGCHLD, obsluga);
-
 	if((pid=fork())==0){
 	    signal(SIGTSTP, SIG_DFL);
 		//DOKONUJEMY KOPI DANYCH
@@ -153,12 +164,9 @@ void runBG(int pidT);
  * Główna funkcja programu
 */
 int main(int argcM, char **argvM){
-	int i = 0;
-	int k = 0;
-	int status=0, plikW, defIN;
+	int i = 0, k = 0, status=0, plikW, defIN, wTle=1;
 	char *line;
 	pid_t pidT;
-	int wTle=1;
 	ppid=getpid();
 	if(isatty(0)) terminal=1;					//WCZYTANA LINIA
 	if(argcM>1) {
@@ -171,7 +179,6 @@ int main(int argcM, char **argvM){
 		signal(SIGTSTP, obsluga_CTRL_Z);
 		dir = getcwd(dir,100);
 		dir = strcat(dir," >>> ");
-
 		if(terminal==1) line=readline(dir);	//Wczytanie lini
 		else {
 			defIN=dup(1);
@@ -193,31 +200,18 @@ int main(int argcM, char **argvM){
 						continue;
 					}
 					zamienLinie(komendyRownolegle[k]);											//ZAMIENIA LINIE NA KOMENDY I PARAMETRY W TABLICY
+					if(argv[0]) argc=ustawZmienne(argc,argv);
+					if(argv[0] && !strcmp(argv[0],"unset") ){ unSetVar(argc,argv) ;continue;}
 					if(argv[0] && !strcmp(argv[0],"fg") && argv[1] ) { runFG(atoi(argv[1])); continue;}
 					if(argv[0] && !strcmp(argv[0],"bg") && argv[1] ) { runBG(atoi(argv[1])); continue;}
-					//if(argv[0] && !strcmp(argv[0],"echo")) { wypiszEcho(argc, argv); continue;}
-					
 					if( (argv[0]!=0) && (argv[0][0]>30 ) ) wykonajPolecenie(argc,argv,wTle--);	//WYKONUJE POLECENIE
 				}
 			}
 		}
-		else if(line == NULL ) exit(0);
+		else if(line == NULL) exit(0);
 	}
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -323,8 +317,7 @@ void obsluga(int signo){
 void runJobs(){
 	int i=0;
 	puts("\nWSTRZYMANE PROCESY :\n");
-	for(i=0; i< zatrzymanych; i++)
-		printf("\tPID: %d\n",stoppedProc[i]);
+	for(i=0; i< zatrzymanych; i++) printf("\tPID: %d\n",stoppedProc[i]);
 	printf("\n\tWykonaj \"fd <PID> \" aby uruchomić odpowiedni proces w trybie pierwszoplanowym");
 	printf("\n\tWykonaj \"bg <PID> \" aby uruchomić odpowiedni proces w tle\n\n");
 }
@@ -335,8 +328,7 @@ void usunZListyBG(int pidT){
 			stoppedProc[i]=0;
 			break;
 		}
-	for(i; i < zatrzymanych ; i++)
-		stoppedProc[i]=stoppedProc[i+1];
+	for(i; i < zatrzymanych ; i++) stoppedProc[i]=stoppedProc[i+1];
 	zatrzymanych--;
 }
 void runBG(int pidT){
@@ -364,16 +356,14 @@ void runFG(int pidT){
 			}
 			break;
 		}
-		else if (WIFSTOPPED(stat))
-    		break;
+		else if (WIFSTOPPED(stat)) break;
 	}
 	usunZListyBG(pidT);
 }
 void wypiszEcho(char *argvT[100], int argcT){
 	int i=0;
 	for(i=1; i<argcT ; i++ )
-		if(argvT[i])
-			printf("%s ",argvT[i]);
+		if(argvT[i]) printf("%s ",argvT[i]);
 	printf("\n");
 }
 void przekierowanieStrumieni(int argcT, char *argvT[100]){
@@ -412,4 +402,8 @@ void przekierowanieStrumieni(int argcT, char *argvT[100]){
 		close(0);
 		odczyt = open(inFILE, O_RDONLY);
 	}
+}
+void unSetVar(int argcT, char *argvT[100]){
+	int i=0;
+	for(i=1;i<argcT;i++) unsetenv(argvT[i]);
 }
