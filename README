@@ -15,4 +15,6 @@ FUNKCJONALNOŚĆ:
 	9. Mozliwość wykonywania poleceń z dowolną liczbą potoków (max 100).
 	10. Możliwość wstrzymywania zadań (CTRL+Z) wraz z implementacją JOBS, FG, BG
 	11. Przechwycenie sygnału ^C dla Shell'a, wyjście następuje za pomocą komendy "exit"
-
+	12. Implementacja wewnętrznego polecenia echo
+	13. Obsługa zmiennych pozycyjnych
+	14. Obsługa zmiennych środowiskowych

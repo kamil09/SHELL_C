@@ -1,3 +1,8 @@
+/**
+	* Własny interpreter poleceń, szczegóły w README
+	* Autor: KAMIL PIOTROWSKi
+*/
+
 #include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -44,42 +49,9 @@ int zamienLinie(char *lineT);
 //Usuwa zmienne środowiskowe
 void unSetVar(int argcT, char *argvT[100]);
 //Ustawie zmienną środowiskową
-int ustawZmienne(int argcT, char *argvT[100]){
-	int i=0, k=0, przesuniecie=0;
-	char *name=NULL, *val=NULL;
-	for(k=0; k < argcT;k++){
-		name=argvT[k];
-		i=1;
-		while( *(argvT[k]+i) != 0 ){
-			if( (*(argvT[k]+i)=='=') && (*(argvT[k]+i-1)!='\\') ){
-				*(argvT[k]+i)=0;
-				val=(argvT[k]+i+1);
-				przesuniecie++;
-				setenv(name,val,1);
-			}
-			i++;
-		}
-	}
-	for(i=przesuniecie; i<=argcT; i++ ) argvT[i-przesuniecie]=argvT[i];
-	return argcT-przesuniecie;
-}
-
-void zamienArgumenty(int argcT, char *argvT[100]){
-	int i=0, number;
-	char *valName;
-	for (i=0;i<argcT; i++){
-		if( argvT[i] && (argvT[i][0]=='$') ){
-			valName=argvT[i]+1;
-			argvT[i]=" \0";
-			number=atoi(valName);
-			if((number > 0 && number<mainArgc) || ( valName[0] == '0') ) argvT[i]=mainArgv[number];
-			else {
-				valName=getenv(valName);
-				if(valName) argvT[i]=valName;
-			}
-		}
-	}
-}
+int ustawZmienne(int argcT, char *argvT[100]);
+//Zamienia argumenty w postaci zmiennych na odpowiedni tekst
+void zamienArgumenty(int argcT, char *argvT[100]);
 
 void wykonajKomende(int iloscPotokow, int obecnyPotok, char *potokiArgv[30][100] ){
 	int err;
@@ -154,12 +126,14 @@ void wykonajPolecenie(int argcT, char *argvT[100], int wTle){
 			if (WIFEXITED(stat)){
 				if(terminal==1) {
 					printf("\nProces zakończony. PID: %d Status: %d\n\n",pid, stat>>8);
+					fgPID=-1;
 					fflush(stdout);
 				}
 			}
 			else if (WIFSIGNALED(stat)){
 				if(terminal==1) {
 					printf("\nProces ubity. PID: %d Status: %d\n\n",pid, stat>>8);
+					fgPID=-1;
 					fflush(stdout);
 				}
 			}
@@ -289,9 +263,7 @@ int zamienLinie(char *lineT){
 	int k=0;
 	int i=0;
 	for(i=0;i<200;i++) argv[i]=0;
-	argc=0;
-
-	argc++;
+	argc=1;
 	c=lineT[k];
 	while(c==' '){
 		k++;
@@ -302,9 +274,7 @@ int zamienLinie(char *lineT){
 	while(c != 0) {
 		if(c == '#' ) break;
 		if(c==' '){
-			if( *(lineT+(k+1))==' ' ){
-				*(lineT+k)=0;
-			}
+			if( *(lineT+(k+1))==' ' ) *(lineT+k)=0;
 			else{
 				*(lineT+k)=0;
 				if(*(lineT+(k+1))!=0 ) {
@@ -332,7 +302,8 @@ void obsluga(int signo){
 	int s;
 	pid_t pidP = waitpid(-1,&s,WNOHANG);
  	if(terminal==1 && pidP>0) {
- 		printf("\nProces zakończony. PID: %d Status: %d\n\n %s",pidP, s>>8,dir);
+ 		if (fgPID<=0) printf("\nProces zakończony. PID: %d Status: %d\n\n %s",pidP, s>>8,dir);
+ 		else printf("\nProces zakończony. PID: %d Status: %d\n",pidP, s>>8);
  		fflush(stdout);
  	}
 }
@@ -367,6 +338,7 @@ void runFG(int pidT){
 		if (WIFEXITED(stat)){
 			if(terminal==1) {
 				printf("\nProces zakończony. PID: %d Status: %d\n\n",pidT, stat>>8);
+				fgPID=-1;
 				fflush(stdout);
 			}
 			break;
@@ -374,6 +346,7 @@ void runFG(int pidT){
 		else if (WIFSIGNALED(stat)){
 			if(terminal==1) {
 				printf("\nProces ubity. PID: %d Status: %d\n\n",pidT, stat>>8);
+				fgPID=-1;
 				fflush(stdout);
 			}
 			break;
@@ -428,4 +401,39 @@ void przekierowanieStrumieni(int argcT, char *argvT[100]){
 void unSetVar(int argcT, char *argvT[100]){
 	int i=0;
 	for(i=1;i<argcT;i++) unsetenv(argvT[i]);
+}
+int ustawZmienne(int argcT, char *argvT[100]){
+	int i=0, k=0, przesuniecie=0;
+	char *name=NULL, *val=NULL;
+	for(k=0; k < argcT;k++){
+		name=argvT[k];
+		i=1;
+		while( *(argvT[k]+i) != 0 ){
+			if( (*(argvT[k]+i)=='=') && (*(argvT[k]+i-1)!='\\') ){
+				*(argvT[k]+i)=0;
+				val=(argvT[k]+i+1);
+				przesuniecie++;
+				setenv(name,val,1);
+			}
+			i++;
+		}
+	}
+	for(i=przesuniecie; i<=argcT; i++ ) argvT[i-przesuniecie]=argvT[i];
+	return argcT-przesuniecie;
+}
+void zamienArgumenty(int argcT, char *argvT[100]){
+	int i=0, number;
+	char *valName;
+	for (i=0;i<argcT; i++){
+		if( argvT[i] && (argvT[i][0]=='$') ){
+			valName=argvT[i]+1;
+			argvT[i]="\0";
+			number=atoi(valName);
+			if((number > 0 && number<mainArgc) || ( valName[0] == '0') ) argvT[i]=mainArgv[number];
+			else {
+				valName=getenv(valName);
+				if(valName) argvT[i]=valName;
+			}
+		}
+	}
 }
