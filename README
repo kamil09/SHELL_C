@@ -1,20 +1,20 @@
-TYTUŁ: SZKIELET WŁASNEGO INTERPRETERA POLECEŃ
+TYTUŁ: My own command interpreter
 
 AUTOR: KAMIL PIOTROWSKI
 
-FUNKCJONALNOŚĆ:
+FEATURES:
 	
-	1. Wykonywanie komend z dowolną lizbą argumentów (max 200)
-	2. Wykonywanie sekwencyjne polceń oddzielonych ";"
-	3. Wykonywanie współbierzne poleceń w tle oddzielonych "&"
-	4. Obsługa komentarzy
-	5. Obsługa procesów ZOMBIE
-	6. Obsługa przekierowań do i z plików (tylko strumienie stdin "<" i stdout ">",">>" )
-	7. Powiadomienie o zakończeniu każdeg procesu (nawet tego w tle) wraz ze statusem zakończenia
-	8. Obsługa tryby interaktywnego i wsadowego (brak znaku zachęty dla wsadowego)
-	9. Mozliwość wykonywania poleceń z dowolną liczbą potoków (max 100).
-	10. Możliwość wstrzymywania zadań (CTRL+Z) wraz z implementacją JOBS, FG, BG
-	11. Przechwycenie sygnału ^C dla Shell'a, wyjście następuje za pomocą komendy "exit"
-	12. Implementacja wewnętrznego polecenia echo
-	13. Obsługa zmiennych pozycyjnych
-	14. Obsługa zmiennych środowiskowych
+	1. execute commands with arguments (max 200)
+	2. Run sequential commands using ";"
+	3. Run parrallel commands in background using "&"
+	4. Support comments
+	5. Handle zombie processess
+	6. Streams forwarding (stdin "<" and stdout ">",">>" )
+	7. Finished command alert with returned status
+	8. interactive and bath mode
+	9. Pipe (max 100).
+	10. Job suspending (CTRL+Z), JOBS, FG, BG implementation
+	11. Handle CTRL+C signal, you should use "exit" to exit interpreter
+	12. "echo" command implementation
+	13. variables
+	14. Env variables
